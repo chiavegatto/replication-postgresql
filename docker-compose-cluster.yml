@@ -7,19 +7,32 @@ services:
     ports:
       - "5433:5432"
     environment:
-      - POSTGRES_DB=postgres      
+      - POSTGRES_DB=postgres
       - POSTGRES_PASSWORD=123456
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     deploy:
       mode: replicated
       replicas: 1
 
   worker:
     image: postgres:worker
+    working_dir: /tmp
     ports:
       - "5434:5432"
+    # depends_on:
+    #   master:
+    #     condition: service_healthy
     environment:
-      - POSTGRES_DB=postgres      
+      - POSTGRES_DB=postgres
       - POSTGRES_PASSWORD=123456
     deploy:
       mode: replicated
       replicas: 1
+    entrypoint: >-
+                /bin/sh -c "./wait-for-it.sh -t 60 master:5432 -- echo 'postgres master is up'
+                && ./basebackup.sh
+                && /usr/local/bin/docker-entrypoint.sh postgres"
